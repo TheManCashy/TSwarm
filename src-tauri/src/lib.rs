@@ -55,19 +55,47 @@ struct FileEntry {
 
 #[tauri::command]
 fn default_root() -> Result<String, String> {
-    let home = if cfg!(windows) {
-        std::env::var("USERPROFILE")
-    } else {
-        std::env::var("HOME")
-    };
+    resolve_home_dir().map(|home| home.to_string_lossy().to_string())
+}
 
-    if let Ok(home) = home {
-        return Ok(home);
+fn resolve_home_dir() -> Result<PathBuf, String> {
+    let user_profile = std::env::var("USERPROFILE").ok();
+    let home = std::env::var("HOME").ok();
+    let home_drive = std::env::var("HOMEDRIVE").ok();
+    let home_path = std::env::var("HOMEPATH").ok();
+
+    if cfg!(windows) {
+        if let Some(path) = user_profile.as_deref() {
+            if !path.trim().is_empty() {
+                return Ok(PathBuf::from(path));
+            }
+        }
+        if let (Some(drive), Some(path)) = (home_drive.as_deref(), home_path.as_deref()) {
+            if !drive.trim().is_empty() && !path.trim().is_empty() {
+                let combined =
+                    PathBuf::from(drive).join(path.trim_start_matches(|c| c == '\\' || c == '/'));
+                return Ok(combined);
+            }
+        }
+        if let Some(path) = home.as_deref() {
+            if !path.trim().is_empty() {
+                return Ok(PathBuf::from(path));
+            }
+        }
+    } else {
+        if let Some(path) = home.as_deref() {
+            if !path.trim().is_empty() {
+                return Ok(PathBuf::from(path));
+            }
+        }
+        if let Some(path) = user_profile.as_deref() {
+            if !path.trim().is_empty() {
+                return Ok(PathBuf::from(path));
+            }
+        }
     }
 
-    std::env::current_dir()
-        .map(|cwd| cwd.to_string_lossy().to_string())
-        .map_err(|e| e.to_string())
+    std::env::current_dir().map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -113,7 +141,7 @@ fn list_dir(path: String) -> Result<Vec<FileEntry>, String> {
 }
 
 fn canvas_state_path(project_path: &str) -> Result<PathBuf, String> {
-    let home = std::env::var("HOME").map_err(|e| e.to_string())?;
+    let home = resolve_home_dir()?;
     let dir = PathBuf::from(home).join(".canvas-terminal").join("state");
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let mut hasher = blake3::Hasher::new();
@@ -123,14 +151,14 @@ fn canvas_state_path(project_path: &str) -> Result<PathBuf, String> {
 }
 
 fn canvas_state_dir() -> Result<PathBuf, String> {
-    let home = std::env::var("HOME").map_err(|e| e.to_string())?;
+    let home = resolve_home_dir()?;
     let dir = PathBuf::from(home).join(".canvas-terminal").join("state");
     fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     Ok(dir)
 }
 
 fn claude_project_dir(project_path: &str) -> Result<PathBuf, String> {
-    let home = std::env::var("HOME").map_err(|e| e.to_string())?;
+    let home = resolve_home_dir()?;
     let trimmed = project_path.trim_end_matches('/');
     let encoded = trimmed.replace('/', "-");
     Ok(PathBuf::from(home).join(".claude").join("projects").join(encoded))
@@ -212,7 +240,7 @@ fn list_saved_projects() -> Result<Vec<SavedProject>, String> {
 
 #[tauri::command]
 fn get_codex_latest_session() -> Result<Option<String>, String> {
-    let home = std::env::var("HOME").map_err(|e| e.to_string())?;
+    let home = resolve_home_dir()?;
     let path = PathBuf::from(home).join(".codex").join("history.jsonl");
     if !path.exists() {
         return Ok(None);
@@ -283,7 +311,7 @@ fn claude_session_exists(project_path: String, session_id: String) -> Result<boo
 
 #[tauri::command]
 fn get_gemini_latest_session(project_path: String) -> Result<Option<String>, String> {
-    let home = std::env::var("HOME").map_err(|e| e.to_string())?;
+    let home = resolve_home_dir()?;
     let base = PathBuf::from(home).join(".gemini").join("tmp");
     if !base.exists() {
         return Ok(None);
@@ -339,7 +367,7 @@ fn get_gemini_latest_session(project_path: String) -> Result<Option<String>, Str
 }
 
 fn find_latest_codex_db() -> Result<Option<PathBuf>, String> {
-    let home = std::env::var("HOME").map_err(|e| e.to_string())?;
+    let home = resolve_home_dir()?;
     let base = PathBuf::from(home).join(".codex");
     if !base.exists() {
         return Ok(None);
@@ -415,7 +443,7 @@ fn get_codex_threads_after(cwd: String, min_ts_ms: i64, limit: Option<usize>) ->
 
 #[tauri::command]
 fn get_codex_recent_sessions(limit: Option<usize>) -> Result<Vec<CodexSessionSummary>, String> {
-    let home = std::env::var("HOME").map_err(|e| e.to_string())?;
+    let home = resolve_home_dir()?;
     let path = PathBuf::from(home).join(".codex").join("history.jsonl");
     if !path.exists() {
         return Ok(vec![]);
@@ -519,7 +547,7 @@ fn get_claude_sessions(project_path: String, limit: Option<usize>) -> Result<Vec
 
 #[tauri::command]
 fn get_gemini_latest_session_after(project_path: String, min_ts_ms: i64) -> Result<Option<String>, String> {
-    let home = std::env::var("HOME").map_err(|e| e.to_string())?;
+    let home = resolve_home_dir()?;
     let base = PathBuf::from(home).join(".gemini").join("tmp");
     if !base.exists() {
         return Ok(None);
@@ -799,6 +827,7 @@ fn set_fn_hotkey_mode(app: AppHandle, mode: String) -> Result<(), String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             #[cfg(desktop)]
             {

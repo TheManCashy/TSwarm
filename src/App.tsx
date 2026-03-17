@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { open } from '@tauri-apps/plugin-dialog';
 import { FileTree } from './components/FileTree';
 import { FileWindow } from './components/FileWindow';
 import { TerminalWindow } from './components/TerminalWindow';
@@ -281,6 +282,14 @@ export default function App() {
     return screenToWorld(rect.left + rect.width / 2, rect.top + rect.height / 2);
   };
 
+  const normalizePathForMatch = (path: string) => {
+    const trimmed = path.trim();
+    if (!trimmed) return '';
+    if (trimmed === '/' || trimmed === '\\') return trimmed;
+    if (/^[A-Za-z]:[\\/]?$/.test(trimmed)) return trimmed;
+    return trimmed.replace(/[\\/]+$/, '');
+  };
+
   const openFileWindow = (path: string) => {
     const existing = windowsRef.current.find((w) => w.type === 'file' && w.path === path);
     if (existing) {
@@ -312,7 +321,7 @@ export default function App() {
 
   const spawnFileWindowFromState = (path: string, state: Partial<WindowItem>) => {
     const { kind, mime } = inferFileKind(path);
-    const id = crypto.randomUUID();
+    const id = state.id || crypto.randomUUID();
     zRef.current = Math.max(zRef.current + 1, state.z ?? zRef.current);
     const newWindow: WindowItem = {
       id,
@@ -376,6 +385,7 @@ export default function App() {
       windows: windows.map((win) => {
         if (win.type === 'terminal') {
           return {
+            id: win.id,
             type: 'terminal',
             name: win.name,
             x: win.x,
@@ -388,6 +398,7 @@ export default function App() {
           };
         }
         return {
+          id: win.id,
           type: 'file',
           name: win.name,
           path: win.path,
@@ -440,7 +451,7 @@ export default function App() {
               shell: null,
               cwd: rootPathRef.current || null,
             });
-            const id = crypto.randomUUID();
+            const id = w.id || crypto.randomUUID();
             restored.push({
               id,
               x: w.x ?? 160,
@@ -460,7 +471,7 @@ export default function App() {
               startCliInTerminal(session.id, w.terminalKind, w.resumeSessionId);
             }
           } else if (w.type === 'file' && w.path) {
-            restored.push(spawnFileWindowFromState(w.path, w));
+            restored.push(spawnFileWindowFromState(w.path, { ...w, id: w.id || crypto.randomUUID() }));
           }
         }
         if (!cancelled) {
@@ -626,6 +637,60 @@ export default function App() {
     } as React.CSSProperties;
   }, [transform]);
 
+  const switchProject = async (nextPath: string) => {
+    const normalizedNextPath = normalizePathForMatch(nextPath);
+    if (!normalizedNextPath) return;
+    const savedMatch = savedProjects.find(
+      (project) => normalizePathForMatch(project.path) === normalizedNextPath
+    );
+    const targetPath = savedMatch?.path || nextPath;
+    if (normalizePathForMatch(rootPathRef.current) === normalizePathForMatch(targetPath)) {
+      setRootPath(targetPath);
+      setPickerPath(targetPath);
+      setShowProjectPicker(false);
+      setPickerError(null);
+      return;
+    }
+
+    const openSessions = windowsRef.current
+      .filter((win): win is WindowItem & { type: 'terminal'; sessionId: string } => (
+        win.type === 'terminal' && typeof win.sessionId === 'string' && win.sessionId.length > 0
+      ))
+      .map((win) => win.sessionId);
+    await Promise.all(
+      openSessions.map((id) =>
+        invoke('close_session', { id }).catch((err) => {
+          console.warn('close session failed while switching project', err);
+        })
+      )
+    );
+
+    pendingResumeRef.current.clear();
+    codexAssignedRef.current.clear();
+    claudeAssignedRef.current.clear();
+    setWindows([]);
+    setActiveId(null);
+    setTransform({ x: 80, y: 80, scale: 1 });
+    spawnedRef.current = false;
+
+    setRootPath(targetPath);
+    setPickerPath(targetPath);
+    setShowProjectPicker(false);
+    setPickerError(null);
+  };
+
+  const browseForProject = async () => {
+    const selected = await open({
+      directory: true,
+      multiple: false,
+      defaultPath: pickerPath || rootPath || undefined,
+    });
+    if (typeof selected === 'string' && selected.trim()) {
+      setPickerPath(selected);
+      setPickerError(null);
+    }
+  };
+
   return (
     <div className={`app ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
       <FileTree
@@ -655,8 +720,9 @@ export default function App() {
                     className="project-item"
                     type="button"
                     onClick={() => {
-                      setRootPath(project.path);
-                      setPickerError(null);
+                      switchProject(project.path).catch(() => {
+                        setPickerError(`Could not open folder: ${project.path}`);
+                      });
                     }}
                   >
                     <span className="project-name">{project.name}</span>
@@ -676,11 +742,11 @@ export default function App() {
                 className="btn"
                 type="button"
                 onClick={async () => {
-                  if (!pickerPath) return;
+                  const nextPath = pickerPath.trim();
+                  if (!nextPath) return;
                   try {
-                    await invoke('list_dir', { path: pickerPath });
-                    setRootPath(pickerPath);
-                    setPickerError(null);
+                    await invoke('list_dir', { path: nextPath });
+                    await switchProject(nextPath);
                   } catch {
                     setPickerError('Folder not found');
                   }
@@ -688,16 +754,30 @@ export default function App() {
               >
                 Open
               </button>
+              <button className="btn" type="button" onClick={browseForProject}>
+                Browse
+              </button>
             </div>
             {pickerError && <div className="project-error">{pickerError}</div>}
             <div className="project-actions">
+              {rootPath && (
+                <button
+                  className="btn"
+                  type="button"
+                  onClick={() => {
+                    setShowProjectPicker(false);
+                    setPickerError(null);
+                  }}
+                >
+                  Cancel
+                </button>
+              )}
               <button
                 className="btn"
                 type="button"
                 onClick={async () => {
                   const home = await invoke<string>('default_root');
-                  setRootPath(home);
-                  setPickerError(null);
+                  await switchProject(home);
                 }}
               >
                 Use Home Folder
@@ -709,7 +789,18 @@ export default function App() {
 
       <div className="topbar" data-tauri-drag-region>
         <div className="topbar-left">
-          <div className="topbar-spacer" />
+          <button
+            className="btn"
+            type="button"
+            data-tauri-drag-region="false"
+            onClick={() => {
+              setPickerPath(rootPath || pickerPath);
+              setPickerError(null);
+              setShowProjectPicker(true);
+            }}
+          >
+            Open Project
+          </button>
         </div>
         <div className="topbar-center">
           <button className="btn primary" onClick={handleNewTerminal} data-tauri-drag-region="false">
