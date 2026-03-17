@@ -284,7 +284,8 @@ export default function App() {
   const normalizePathForMatch = (path: string) => {
     const trimmed = path.trim();
     if (!trimmed) return '';
-    if (/^([\\/]|[A-Za-z]:[\\/]?)$/.test(trimmed)) return trimmed;
+    if (trimmed === '/' || trimmed === '\\') return trimmed;
+    if (/^[A-Za-z]:[\\/]?$/.test(trimmed)) return trimmed;
     return trimmed.replace(/[\\/]+$/, '');
   };
 
