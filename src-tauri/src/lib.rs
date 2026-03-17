@@ -826,6 +826,7 @@ fn set_fn_hotkey_mode(app: AppHandle, mode: String) -> Result<(), String> {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init())
         .setup(|app| {
             #[cfg(desktop)]
             {
