@@ -71,21 +71,26 @@ fn resolve_home_dir() -> Result<PathBuf, String> {
             }
         }
         if let (Some(drive), Some(path)) = (home_drive.as_deref(), home_path.as_deref()) {
-            let combined = format!("{drive}{path}");
-            if !combined.trim().is_empty() {
-                return Ok(PathBuf::from(combined));
+            if !drive.trim().is_empty() && !path.trim().is_empty() {
+                let combined = PathBuf::from(drive).join(path.trim_start_matches(['\\', '/']));
+                return Ok(combined);
             }
         }
-    }
-
-    if let Some(path) = home.as_deref() {
-        if !path.trim().is_empty() {
-            return Ok(PathBuf::from(path));
+        if let Some(path) = home.as_deref() {
+            if !path.trim().is_empty() {
+                return Ok(PathBuf::from(path));
+            }
         }
-    }
-    if let Some(path) = user_profile.as_deref() {
-        if !path.trim().is_empty() {
-            return Ok(PathBuf::from(path));
+    } else {
+        if let Some(path) = home.as_deref() {
+            if !path.trim().is_empty() {
+                return Ok(PathBuf::from(path));
+            }
+        }
+        if let Some(path) = user_profile.as_deref() {
+            if !path.trim().is_empty() {
+                return Ok(PathBuf::from(path));
+            }
         }
     }
 
