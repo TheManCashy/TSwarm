@@ -298,7 +298,7 @@ export default function App() {
       )
     );
     if (!win) return;
-    spawnTerminal(win.x + 24, win.y + 24, `${win.name} copy`, {
+    spawnTerminal(win.x + 24, win.y + 24, `${win.name} (Copy)`, {
       width: win.width,
       height: win.height,
       terminalKind: win.terminalKind,
