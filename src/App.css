@@ -465,6 +465,26 @@ body,
   gap: 6px;
 }
 
+.sketch-float {
+  position: fixed;
+  right: 20px;
+  top: 54px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(11, 13, 18, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  padding: 6px 10px;
+  z-index: 1301;
+}
+
+.sketch-label {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 0 4px 0 2px;
+}
+
 .btn {
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.1);

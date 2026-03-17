@@ -845,15 +845,18 @@ export default function App() {
             + Terminal
           </button>
         </div>
-        <div className="topbar-right">
-          <div className="sketch-tools" data-tauri-drag-region="false" role="toolbar" aria-label="Sketch tools">
-            <button aria-label="Pan canvas" className={`icon-btn ${sketchTool === 'pan' ? 'active' : ''}`} onClick={() => setSketchTool('pan')} title="Pan canvas">✋</button>
-            <button aria-label="Freehand sketch" className={`icon-btn ${sketchTool === 'freehand' ? 'active' : ''}`} onClick={() => setSketchTool('freehand')} title="Freehand">✎</button>
-            <button aria-label="Draw rectangle" className={`icon-btn ${sketchTool === 'rect' ? 'active' : ''}`} onClick={() => setSketchTool('rect')} title="Rectangle">▭</button>
-            <button aria-label="Draw ellipse" className={`icon-btn ${sketchTool === 'ellipse' ? 'active' : ''}`} onClick={() => setSketchTool('ellipse')} title="Ellipse">◯</button>
-            <button aria-label="Draw arrow" className={`icon-btn ${sketchTool === 'arrow' ? 'active' : ''}`} onClick={() => setSketchTool('arrow')} title="Arrow">➜</button>
-            <button aria-label="Clear sketches" className="icon-btn" onClick={() => setSketches([])} title="Clear sketches">⌫</button>
-          </div>
+        <div className="topbar-right" />
+      </div>
+
+      <div className="sketch-float" data-tauri-drag-region="false">
+        <span className="sketch-label">Sketch</span>
+        <div className="sketch-tools" role="toolbar" aria-label="Sketch tools">
+          <button aria-label="Pan canvas" className={`icon-btn ${sketchTool === 'pan' ? 'active' : ''}`} onClick={() => setSketchTool('pan')} title="Pan canvas">✋</button>
+          <button aria-label="Freehand sketch" className={`icon-btn ${sketchTool === 'freehand' ? 'active' : ''}`} onClick={() => setSketchTool('freehand')} title="Freehand">✎</button>
+          <button aria-label="Draw rectangle" className={`icon-btn ${sketchTool === 'rect' ? 'active' : ''}`} onClick={() => setSketchTool('rect')} title="Rectangle">▭</button>
+          <button aria-label="Draw ellipse" className={`icon-btn ${sketchTool === 'ellipse' ? 'active' : ''}`} onClick={() => setSketchTool('ellipse')} title="Ellipse">◯</button>
+          <button aria-label="Draw arrow" className={`icon-btn ${sketchTool === 'arrow' ? 'active' : ''}`} onClick={() => setSketchTool('arrow')} title="Arrow">➜</button>
+          <button aria-label="Clear sketches" className="icon-btn" onClick={() => setSketches([])} title="Clear sketches">⌫</button>
         </div>
       </div>
 
