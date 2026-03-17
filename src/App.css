@@ -61,6 +61,22 @@ body,
   transform-origin: 0 0;
 }
 
+.sketch-layer {
+  position: absolute;
+  inset: 0;
+  width: 6000px;
+  height: 6000px;
+  pointer-events: none;
+}
+
+.sketch-path {
+  fill: none;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 0.1 5.2;
+}
+
 .sidebar {
   position: fixed;
   top: 0;
@@ -272,6 +288,19 @@ body,
   color: var(--muted);
 }
 
+.sidebar-sketch {
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.sidebar-sketch-tools {
+  margin-top: 8px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
 .tree-row {
   display: flex;
   align-items: center;
@@ -443,6 +472,32 @@ body,
   justify-content: flex-end;
 }
 
+.sketch-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.sketch-float {
+  position: fixed;
+  right: 20px;
+  top: 54px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(11, 13, 18, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  padding: 6px 10px;
+  z-index: 1301;
+}
+
+.sketch-label {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 0 4px 0 2px;
+}
+
 .btn {
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -513,6 +568,12 @@ body,
 
 .icon-btn:hover {
   border-color: rgba(255, 255, 255, 0.3);
+}
+
+.icon-btn.active {
+  border-color: rgba(98, 210, 255, 0.52);
+  background: rgba(98, 210, 255, 0.2);
+  color: #dff3ff;
 }
 
 .has-tooltip::after {

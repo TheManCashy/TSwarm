@@ -3,12 +3,17 @@ import { invoke } from '@tauri-apps/api/core';
 import { FileTree } from './components/FileTree';
 import { FileWindow } from './components/FileWindow';
 import { TerminalWindow } from './components/TerminalWindow';
-import type { CanvasTransform, FileKind, WindowItem } from './types';
+import type { CanvasTransform, FileKind, SketchItem, SketchTool, WindowItem } from './types';
 import { getTerminalOutput } from './terminalBridge';
 import './App.css';
 
 const MIN_SCALE = 0.25;
 const MAX_SCALE = 2.5;
+const SKETCH_JITTER_AMOUNT = 0.9;
+const SKETCH_JITTER_OFFSET = 17;
+const SKETCH_LCG_A = 9301;
+const SKETCH_LCG_C = 49297;
+const SKETCH_LCG_M = 233280;
 
 const TEXT_EXTS = new Set([
   'txt', 'md', 'markdown', 'json', 'js', 'ts', 'tsx', 'jsx', 'py', 'rs', 'go', 'java', 'c', 'cpp', 'h',
@@ -48,6 +53,20 @@ const inferFileKind = (path: string): { kind: FileKind; mime?: string } => {
   return { kind: 'unknown' };
 };
 
+const hashSeed = (value: string) => {
+  let hash = 0;
+  for (let i = 0; i < value.length; i += 1) {
+    hash = (hash * 31 + value.charCodeAt(i)) >>> 0;
+  }
+  return hash;
+};
+
+const jitterPoint = (x: number, y: number, seed: number) => {
+  const jitterX = (((seed * SKETCH_LCG_A + SKETCH_LCG_C) % SKETCH_LCG_M) / SKETCH_LCG_M - 0.5) * SKETCH_JITTER_AMOUNT;
+  const jitterY = ((((seed + SKETCH_JITTER_OFFSET) * SKETCH_LCG_A + SKETCH_LCG_C) % SKETCH_LCG_M) / SKETCH_LCG_M - 0.5) * SKETCH_JITTER_AMOUNT;
+  return { x: x + jitterX, y: y + jitterY };
+};
+
 export default function App() {
   const [transform, setTransform] = useState<CanvasTransform>({ x: 80, y: 80, scale: 1 });
   const [windows, setWindows] = useState<WindowItem[]>([]);
@@ -58,9 +77,13 @@ export default function App() {
   const [showProjectPicker, setShowProjectPicker] = useState(true);
   const [pickerPath, setPickerPath] = useState('');
   const [pickerError, setPickerError] = useState<string | null>(null);
+  const [sketches, setSketches] = useState<SketchItem[]>([]);
+  const [sketchTool, setSketchTool] = useState<SketchTool>('pan');
 
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const panRef = useRef({ active: false, startX: 0, startY: 0, originX: 0, originY: 0 });
+  const sketchRef = useRef<{ active: boolean; id: string | null }>({ active: false, id: null });
+  const transformRef = useRef<CanvasTransform>({ x: 80, y: 80, scale: 1 });
   const zRef = useRef(10);
   const spawnedRef = useRef(false);
   const windowsRef = useRef<WindowItem[]>([]);
@@ -84,6 +107,23 @@ export default function App() {
       (window as any).__addLog = () => {};
     }
     const onPointerMove = (event: PointerEvent) => {
+      if (sketchRef.current.active && sketchRef.current.id) {
+        if (!canvasRef.current || sketchTool === 'pan') return;
+        const rect = canvasRef.current.getBoundingClientRect();
+        const currentTransform = transformRef.current;
+        const point = {
+          x: (event.clientX - rect.left - currentTransform.x) / currentTransform.scale,
+          y: (event.clientY - rect.top - currentTransform.y) / currentTransform.scale,
+        };
+        setSketches((prev) =>
+          prev.map((item) => {
+            if (item.id !== sketchRef.current.id) return item;
+            if (item.type === 'freehand') return { ...item, points: [...item.points, point] };
+            return { ...item, points: [item.points[0], point] };
+          })
+        );
+        return;
+      }
       if (!panRef.current.active) return;
       const dx = event.clientX - panRef.current.startX;
       const dy = event.clientY - panRef.current.startY;
@@ -96,6 +136,8 @@ export default function App() {
 
     const onPointerUp = () => {
       panRef.current.active = false;
+      sketchRef.current.active = false;
+      sketchRef.current.id = null;
     };
 
     window.addEventListener('pointermove', onPointerMove);
@@ -105,7 +147,7 @@ export default function App() {
       window.removeEventListener('pointermove', onPointerMove);
       window.removeEventListener('pointerup', onPointerUp);
     };
-  }, []);
+  }, [sketchTool]);
 
   useEffect(() => {
     windowsRef.current = windows;
@@ -118,6 +160,10 @@ export default function App() {
   useEffect(() => {
     rootPathRef.current = rootPath;
   }, [rootPath]);
+
+  useEffect(() => {
+    transformRef.current = transform;
+  }, [transform]);
 
   useEffect(() => {
     const loadProjects = async () => {
@@ -158,6 +204,29 @@ export default function App() {
       originX: transform.x,
       originY: transform.y,
     };
+  };
+
+  const beginSketch = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    if (!isBackgroundTarget(event.target) || sketchTool === 'pan') return;
+    const { x, y } = screenToWorld(event.clientX, event.clientY);
+    const id = crypto.randomUUID();
+    const item: SketchItem = {
+      id,
+      type: sketchTool,
+      points: [{ x, y }],
+    };
+    if (sketchTool !== 'freehand') item.points.push({ x, y });
+    sketchRef.current = { active: true, id };
+    setSketches((prev) => [...prev, item]);
+  };
+
+  const handleCanvasPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (sketchTool === 'pan') {
+      beginPan(event);
+      return;
+    }
+    beginSketch(event);
   };
 
   const handleWheel = (event: React.WheelEvent<HTMLDivElement>) => {
@@ -236,6 +305,7 @@ export default function App() {
   }, [rootPath]);
 
   const handleDoubleClick = (event: React.MouseEvent<HTMLDivElement>) => {
+    if (sketchTool !== 'pan') return;
     if (!isBackgroundTarget(event.target)) return;
     const { x, y } = screenToWorld(event.clientX, event.clientY);
     spawnTerminal(x, y).catch((err) => {
@@ -373,6 +443,7 @@ export default function App() {
       lastUsed: Date.now(),
       transform,
       activeId,
+      sketches,
       windows: windows.map((win) => {
         if (win.type === 'terminal') {
           return {
@@ -414,7 +485,7 @@ export default function App() {
 
   useEffect(() => {
     saveState();
-  }, [windows, transform, activeId, rootPath]);
+  }, [windows, transform, activeId, sketches, rootPath]);
 
   useEffect(() => {
     if (!rootPath) return;
@@ -465,6 +536,7 @@ export default function App() {
         }
         if (!cancelled) {
           setTransform(state.transform || { x: 80, y: 80, scale: 1 });
+          setSketches(Array.isArray(state.sketches) ? state.sketches : []);
           setWindows(restored);
           setActiveId(state.activeId || (restored[0]?.id ?? null));
           const assigned = new Set(
@@ -626,6 +698,63 @@ export default function App() {
     } as React.CSSProperties;
   }, [transform]);
 
+  const renderSketch = (item: SketchItem) => {
+    const seed = hashSeed(item.id);
+    const jittered = item.points.map((point, idx) => jitterPoint(point.x, point.y, seed + idx * 7));
+    const stroke = 'rgba(217, 240, 255, 0.95)';
+    if (item.type === 'freehand') {
+      const d = jittered
+        .map((point, idx) => `${idx === 0 ? 'M' : 'L'} ${point.x.toFixed(2)} ${point.y.toFixed(2)}`)
+        .join(' ');
+      return <path key={item.id} d={d} className="sketch-path" stroke={stroke} />;
+    }
+
+    const [a, b] = jittered;
+    if (!a || !b) return null;
+    if (item.type === 'arrow') {
+      const angle = Math.atan2(b.y - a.y, b.x - a.x);
+      const head = 12;
+      const left = {
+        x: b.x - head * Math.cos(angle - Math.PI / 6),
+        y: b.y - head * Math.sin(angle - Math.PI / 6),
+      };
+      const right = {
+        x: b.x - head * Math.cos(angle + Math.PI / 6),
+        y: b.y - head * Math.sin(angle + Math.PI / 6),
+      };
+      const path = `M ${a.x.toFixed(2)} ${a.y.toFixed(2)} L ${b.x.toFixed(2)} ${b.y.toFixed(2)} M ${left.x.toFixed(2)} ${left.y.toFixed(2)} L ${b.x.toFixed(2)} ${b.y.toFixed(2)} L ${right.x.toFixed(2)} ${right.y.toFixed(2)}`;
+      return <path key={item.id} d={path} className="sketch-path" stroke={stroke} fill="none" />;
+    }
+
+    const x = Math.min(a.x, b.x);
+    const y = Math.min(a.y, b.y);
+    const width = Math.max(1, Math.abs(b.x - a.x));
+    const height = Math.max(1, Math.abs(b.y - a.y));
+    if (item.type === 'rect') {
+      return (
+        <path
+          key={item.id}
+          d={`M ${x.toFixed(2)} ${y.toFixed(2)} L ${(x + width).toFixed(2)} ${y.toFixed(2)} L ${(x + width).toFixed(2)} ${(y + height).toFixed(2)} L ${x.toFixed(2)} ${(y + height).toFixed(2)} Z`}
+          className="sketch-path"
+          stroke={stroke}
+        />
+      );
+    }
+
+    return (
+      <ellipse
+        key={item.id}
+        cx={x + width / 2}
+        cy={y + height / 2}
+        rx={width / 2}
+        ry={height / 2}
+        className="sketch-path"
+        stroke={stroke}
+        fill="none"
+      />
+    );
+  };
+
   return (
     <div className={`app ${sidebarOpen ? '' : 'sidebar-collapsed'}`}>
       <FileTree
@@ -640,6 +769,9 @@ export default function App() {
         onRenameSession={handleRename}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
+        sketchTool={sketchTool}
+        onSketchToolChange={setSketchTool}
+        onClearSketches={() => setSketches([])}
       />
 
       {showProjectPicker && (
@@ -719,6 +851,18 @@ export default function App() {
         <div className="topbar-right" />
       </div>
 
+      <div className="sketch-float" data-tauri-drag-region="false">
+        <span className="sketch-label">Sketch</span>
+        <div className="sketch-tools" role="toolbar" aria-label="Sketch tools">
+          <button aria-label="Pan canvas" className={`icon-btn ${sketchTool === 'pan' ? 'active' : ''}`} onClick={() => setSketchTool('pan')} title="Pan canvas">✋</button>
+          <button aria-label="Freehand sketch" className={`icon-btn ${sketchTool === 'freehand' ? 'active' : ''}`} onClick={() => setSketchTool('freehand')} title="Freehand">✎</button>
+          <button aria-label="Draw rectangle" className={`icon-btn ${sketchTool === 'rect' ? 'active' : ''}`} onClick={() => setSketchTool('rect')} title="Rectangle">▭</button>
+          <button aria-label="Draw ellipse" className={`icon-btn ${sketchTool === 'ellipse' ? 'active' : ''}`} onClick={() => setSketchTool('ellipse')} title="Ellipse">◯</button>
+          <button aria-label="Draw arrow" className={`icon-btn ${sketchTool === 'arrow' ? 'active' : ''}`} onClick={() => setSketchTool('arrow')} title="Arrow">➜</button>
+          <button aria-label="Clear sketches" className="icon-btn" onClick={() => setSketches([])} title="Clear sketches">⌫</button>
+        </div>
+      </div>
+
       <div className="zoom-float">
         <button
           className="zoom-btn"
@@ -752,11 +896,14 @@ export default function App() {
       <div
         className="canvas"
         ref={canvasRef}
-        onPointerDown={beginPan}
+        onPointerDown={handleCanvasPointerDown}
         onWheel={handleWheel}
         onDoubleClick={handleDoubleClick}
       >
         <div className="canvas-grid" style={canvasStyle}>
+          <svg className="sketch-layer" viewBox="-3000 -3000 6000 6000">
+            {sketches.map(renderSketch)}
+          </svg>
           {windows.map((win) => {
             if (win.type === 'terminal') {
               return (
