@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
-import type { FileEntry } from '../types';
+import type { FileEntry, SketchTool } from '../types';
 
 export type TreeNode = {
   entry: FileEntry;
@@ -19,6 +19,9 @@ type Props = {
   onRenameSession?: (id: string, name: string) => void;
   sidebarOpen?: boolean;
   onToggleSidebar?: () => void;
+  sketchTool?: SketchTool;
+  onSketchToolChange?: (tool: SketchTool) => void;
+  onClearSketches?: () => void;
 };
 
 function buildNodes(entries: FileEntry[]): TreeNode[] {
@@ -113,6 +116,9 @@ export function FileTree({
   onRenameSession,
   sidebarOpen = true,
   onToggleSidebar,
+  sketchTool,
+  onSketchToolChange,
+  onClearSketches,
 }: Props) {
   const [nodes, setNodes] = useState<TreeNode[]>([]);
   const [selectedPath, setSelectedPath] = useState<string | null>(null);
@@ -246,6 +252,19 @@ export function FileTree({
             </div>
           ))}
         </div>
+        {sketchTool && onSketchToolChange && onClearSketches && (
+          <div className="sidebar-sketch">
+            <div className="sidebar-title">Sketch Tools</div>
+            <div className="sidebar-sketch-tools" role="toolbar" aria-label="Sketch tools">
+              <button aria-label="Pan canvas" className={`icon-btn ${sketchTool === 'pan' ? 'active' : ''}`} onClick={() => onSketchToolChange('pan')} title="Pan canvas" type="button">✋</button>
+              <button aria-label="Freehand sketch" className={`icon-btn ${sketchTool === 'freehand' ? 'active' : ''}`} onClick={() => onSketchToolChange('freehand')} title="Freehand" type="button">✎</button>
+              <button aria-label="Draw rectangle" className={`icon-btn ${sketchTool === 'rect' ? 'active' : ''}`} onClick={() => onSketchToolChange('rect')} title="Rectangle" type="button">▭</button>
+              <button aria-label="Draw ellipse" className={`icon-btn ${sketchTool === 'ellipse' ? 'active' : ''}`} onClick={() => onSketchToolChange('ellipse')} title="Ellipse" type="button">◯</button>
+              <button aria-label="Draw arrow" className={`icon-btn ${sketchTool === 'arrow' ? 'active' : ''}`} onClick={() => onSketchToolChange('arrow')} title="Arrow" type="button">➜</button>
+              <button aria-label="Clear sketches" className="icon-btn" onClick={onClearSketches} title="Clear sketches" type="button">⌫</button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

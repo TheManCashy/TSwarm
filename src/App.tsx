@@ -769,6 +769,9 @@ export default function App() {
         onRenameSession={handleRename}
         sidebarOpen={sidebarOpen}
         onToggleSidebar={() => setSidebarOpen((prev) => !prev)}
+        sketchTool={sketchTool}
+        onSketchToolChange={setSketchTool}
+        onClearSketches={() => setSketches([])}
       />
 
       {showProjectPicker && (
