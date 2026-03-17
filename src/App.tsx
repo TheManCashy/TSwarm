@@ -193,7 +193,7 @@ export default function App() {
 
   const isBackgroundTarget = (target: EventTarget | null) => {
     if (!(target instanceof HTMLElement)) return true;
-    return !target.closest('.terminal-window');
+    return !target.closest('.terminal-window, .excalidraw-host');
   };
 
   const beginPan = (event: React.PointerEvent<HTMLDivElement>) => {
@@ -862,20 +862,6 @@ export default function App() {
         </div>
       </div>
 
-      {showExcalidraw && (
-        <div className="excalidraw-panel" data-tauri-drag-region="false" style={{ left: sidebarOpen ? 300 : 20 }}>
-          <div className="excalidraw-panel-header">
-            <span>Excalidraw</span>
-            <button className="btn" onClick={() => setShowExcalidraw(false)} type="button">
-              Close
-            </button>
-          </div>
-          <div className="excalidraw-panel-body">
-            <Excalidraw theme="dark" />
-          </div>
-        </div>
-      )}
-
       <div className="sketch-float" data-tauri-drag-region="false">
         <span className="sketch-label">Sketch</span>
         <div className="sketch-tools" role="toolbar" aria-label="Sketch tools">
@@ -925,6 +911,11 @@ export default function App() {
         onWheel={handleWheel}
         onDoubleClick={handleDoubleClick}
       >
+        {showExcalidraw && (
+          <div className="excalidraw-host" data-tauri-drag-region="false">
+            <Excalidraw theme="dark" />
+          </div>
+        )}
         <div className="canvas-grid" style={canvasStyle}>
           <svg className="sketch-layer" viewBox="-3000 -3000 6000 6000">
             {sketches.map(renderSketch)}
