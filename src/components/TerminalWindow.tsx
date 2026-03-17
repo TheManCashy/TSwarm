@@ -16,11 +16,12 @@ type Props = {
   onResize: (id: string, width: number, height: number) => void;
   onFocus: (id: string) => void;
   onClose: (id: string) => void;
+  onDuplicate: (id: string) => void;
   onRename: (id: string, name: string) => void;
   onCommand?: (id: string, command: string) => void;
 };
 
-export function TerminalWindow({ win, scale, active, onMove, onResize, onFocus, onClose, onRename, onCommand }: Props) {
+export function TerminalWindow({ win, scale, active, onMove, onResize, onFocus, onClose, onDuplicate, onRename, onCommand }: Props) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const headerRef = useRef<HTMLDivElement | null>(null);
   const termRef = useRef<Terminal | null>(null);
@@ -93,6 +94,40 @@ export function TerminalWindow({ win, scale, active, onMove, onResize, onFocus, 
         }
       });
 
+      term.attachCustomKeyEventHandler((event: KeyboardEvent) => {
+        if (event.type !== 'keydown') return true;
+        const isMac = navigator.platform.toUpperCase().includes('MAC');
+        const mod = isMac ? event.metaKey : event.ctrlKey;
+        if (!mod || event.altKey) return true;
+        const key = event.key.toLowerCase();
+
+        if (key === 'v') {
+          event.preventDefault();
+          navigator.clipboard.readText()
+            .then((text) => {
+              if (!text) return;
+              return invoke('write_session', { id: win.sessionId, data: text });
+            })
+            .catch((err) => {
+              console.error('paste failed', err);
+            });
+          return false;
+        }
+
+        if (key === 'c' && term?.hasSelection()) {
+          event.preventDefault();
+          const selected = term.getSelection();
+          if (selected) {
+            navigator.clipboard.writeText(selected).catch((err) => {
+              console.error('copy failed', err);
+            });
+          }
+          return false;
+        }
+
+        return true;
+      });
+
       ro = new ResizeObserver(() => {
         if (!fitAddon || !term) return;
         fitAddon.fit();
@@ -132,7 +167,7 @@ export function TerminalWindow({ win, scale, active, onMove, onResize, onFocus, 
     if (!header) return;
 
     const onPointerDown = (e: PointerEvent) => {
-      if ((e.target as HTMLElement).dataset.role === 'close') return;
+      if ((e.target as HTMLElement).closest('[data-role]')) return;
       draggingRef.current = true;
       startRef.current = {
         ...startRef.current,
@@ -265,7 +300,13 @@ export function TerminalWindow({ win, scale, active, onMove, onResize, onFocus, 
         </div>
         <div className="terminal-actions">
           <button
-            className="close-btn"
+            className="terminal-action-btn"
+            data-role="duplicate"
+            onClick={() => onDuplicate(win.id)}
+            title="Duplicate"
+          >⧉</button>
+          <button
+            className="terminal-action-btn close-btn"
             data-role="close"
             onClick={() => onClose(win.id)}
             title="Close"

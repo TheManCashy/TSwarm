@@ -201,7 +201,17 @@ export default function App() {
     return { x, y };
   };
 
-  const spawnTerminal = async (x: number, y: number, nameOverride?: string) => {
+  const spawnTerminal = async (
+    x: number,
+    y: number,
+    nameOverride?: string,
+    options?: {
+      width?: number;
+      height?: number;
+      terminalKind?: WindowItem['terminalKind'];
+      resumeSessionId?: string;
+    }
+  ) => {
     (window as any).__addLog?.('spawning terminal...');
     const session = await invoke<{ id: string }>('create_session', {
       shell: null,
@@ -219,13 +229,18 @@ export default function App() {
       title: 'Terminal',
       name,
       sessionId: session.id,
-      width: 520,
-      height: 320,
+      width: options?.width ?? 520,
+      height: options?.height ?? 320,
       type: 'terminal',
+      terminalKind: options?.terminalKind,
+      resumeSessionId: options?.resumeSessionId,
     };
 
     setWindows((prev) => [...prev, newWindow]);
     setActiveId(id);
+    if (options?.terminalKind) {
+      startCliInTerminal(session.id, options.terminalKind, options.resumeSessionId);
+    }
   };
 
   useEffect(() => {
@@ -274,6 +289,22 @@ export default function App() {
 
   const handleRename = (id: string, name: string) => {
     updateWindow(id, { name });
+  };
+
+  const handleDuplicateTerminal = (id: string) => {
+    const win = windowsRef.current.find(
+      (w): w is WindowItem & { type: 'terminal'; sessionId: string } => (
+        w.type === 'terminal' && w.id === id && typeof w.sessionId === 'string'
+      )
+    );
+    if (!win) return;
+    spawnTerminal(win.x + 24, win.y + 24, `${win.name} copy`, {
+      width: win.width,
+      height: win.height,
+      terminalKind: win.terminalKind,
+    }).catch((err) => {
+      console.error('duplicate terminal failed', err);
+    });
   };
 
   const getCanvasCenter = () => {
@@ -860,6 +891,7 @@ export default function App() {
                   onResize={(id, width, height) => updateWindow(id, { width, height })}
                   onFocus={handleFocus}
                   onClose={handleClose}
+                  onDuplicate={handleDuplicateTerminal}
                   onRename={handleRename}
                   onCommand={handleCommand}
                 />
