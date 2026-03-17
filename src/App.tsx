@@ -129,8 +129,7 @@ export default function App() {
       }));
       setSavedProjects(mapped);
       if (!rootPath && mapped.length > 0) {
-        setRootPath(mapped[0].path);
-        setShowProjectPicker(false);
+        setShowProjectPicker(true);
       }
     };
     loadProjects().catch(() => {});
@@ -280,6 +279,13 @@ export default function App() {
     if (!canvasRef.current) return { x: 160, y: 160 };
     const rect = canvasRef.current.getBoundingClientRect();
     return screenToWorld(rect.left + rect.width / 2, rect.top + rect.height / 2);
+  };
+
+  const normalizePathForMatch = (path: string) => {
+    const trimmed = path.trim();
+    if (!trimmed) return '';
+    if (/^([\\/]|[A-Za-z]:[\\/]?)$/.test(trimmed)) return trimmed;
+    return trimmed.replace(/[\\/]+$/, '');
   };
 
   const openFileWindow = (path: string) => {
@@ -679,10 +685,15 @@ export default function App() {
                 className="btn"
                 type="button"
                 onClick={async () => {
-                  if (!pickerPath) return;
+                  const nextPath = pickerPath.trim();
+                  if (!nextPath) return;
                   try {
-                    await invoke('list_dir', { path: pickerPath });
-                    setRootPath(pickerPath);
+                    await invoke('list_dir', { path: nextPath });
+                    const normalizedNextPath = normalizePathForMatch(nextPath);
+                    const savedMatch = savedProjects.find(
+                      (project) => normalizePathForMatch(project.path) === normalizedNextPath
+                    );
+                    setRootPath(savedMatch?.path || nextPath);
                     setPickerError(null);
                   } catch {
                     setPickerError('Folder not found');
