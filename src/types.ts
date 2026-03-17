@@ -8,6 +8,14 @@ export type WindowType = 'terminal' | 'file';
 
 export type FileKind = 'text' | 'image' | 'pdf' | 'video' | 'unknown';
 
+export type SketchTool = 'pan' | 'freehand' | 'rect' | 'ellipse' | 'arrow';
+
+export type SketchItem = {
+  id: string;
+  type: Exclude<SketchTool, 'pan'>;
+  points: Array<{ x: number; y: number }>;
+};
+
 export type WindowItem = {
   id: string;
   title: string;

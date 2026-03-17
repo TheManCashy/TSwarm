@@ -61,6 +61,22 @@ body,
   transform-origin: 0 0;
 }
 
+.sketch-layer {
+  position: absolute;
+  inset: 0;
+  width: 6000px;
+  height: 6000px;
+  pointer-events: none;
+}
+
+.sketch-path {
+  fill: none;
+  stroke-width: 2.4;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 0.1 5.2;
+}
+
 .sidebar {
   position: fixed;
   top: 0;
@@ -443,6 +459,12 @@ body,
   justify-content: flex-end;
 }
 
+.sketch-tools {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
 .btn {
   background: transparent;
   border: 1px solid rgba(255, 255, 255, 0.1);
@@ -513,6 +535,12 @@ body,
 
 .icon-btn:hover {
   border-color: rgba(255, 255, 255, 0.3);
+}
+
+.icon-btn.active {
+  border-color: rgba(98, 210, 255, 0.52);
+  background: rgba(98, 210, 255, 0.2);
+  color: #dff3ff;
 }
 
 .has-tooltip::after {
