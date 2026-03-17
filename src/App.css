@@ -492,6 +492,36 @@ body,
   z-index: 1301;
 }
 
+.excalidraw-panel {
+  position: fixed;
+  top: 54px;
+  right: 20px;
+  bottom: 20px;
+  z-index: 1350;
+  background: rgba(11, 13, 18, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.excalidraw-panel-header {
+  height: 42px;
+  padding: 0 12px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  color: var(--text-primary);
+  font-size: 13px;
+}
+
+.excalidraw-panel-body {
+  flex: 1;
+  min-height: 0;
+}
+
 .sketch-label {
   font-size: 12px;
   color: var(--muted);

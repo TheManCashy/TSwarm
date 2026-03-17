@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import { invoke } from '@tauri-apps/api/core';
+import { Excalidraw } from '@excalidraw/excalidraw';
 import { FileTree } from './components/FileTree';
 import { FileWindow } from './components/FileWindow';
 import { TerminalWindow } from './components/TerminalWindow';
@@ -79,6 +80,7 @@ export default function App() {
   const [pickerError, setPickerError] = useState<string | null>(null);
   const [sketches, setSketches] = useState<SketchItem[]>([]);
   const [sketchTool, setSketchTool] = useState<SketchTool>('pan');
+  const [showExcalidraw, setShowExcalidraw] = useState(false);
 
   const canvasRef = useRef<HTMLDivElement | null>(null);
   const panRef = useRef({ active: false, startX: 0, startY: 0, originX: 0, originY: 0 });
@@ -848,8 +850,31 @@ export default function App() {
             + Terminal
           </button>
         </div>
-        <div className="topbar-right" />
+        <div className="topbar-right">
+          <button
+            className={`btn ${showExcalidraw ? 'primary' : ''}`}
+            onClick={() => setShowExcalidraw((prev) => !prev)}
+            data-tauri-drag-region="false"
+            title={showExcalidraw ? 'Hide Excalidraw' : 'Show Excalidraw'}
+          >
+            {showExcalidraw ? 'Close Excalidraw' : 'Open Excalidraw'}
+          </button>
+        </div>
       </div>
+
+      {showExcalidraw && (
+        <div className="excalidraw-panel" data-tauri-drag-region="false" style={{ left: sidebarOpen ? 300 : 20 }}>
+          <div className="excalidraw-panel-header">
+            <span>Excalidraw</span>
+            <button className="btn" onClick={() => setShowExcalidraw(false)} type="button">
+              Close
+            </button>
+          </div>
+          <div className="excalidraw-panel-body">
+            <Excalidraw theme="dark" />
+          </div>
+        </div>
+      )}
 
       <div className="sketch-float" data-tauri-drag-region="false">
         <span className="sketch-label">Sketch</span>
