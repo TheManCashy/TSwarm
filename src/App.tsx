@@ -129,7 +129,8 @@ export default function App() {
       }));
       setSavedProjects(mapped);
       if (!rootPath && mapped.length > 0) {
-        setShowProjectPicker(true);
+        setRootPath(mapped[0].path);
+        setShowProjectPicker(false);
       }
     };
     loadProjects().catch(() => {});
@@ -312,7 +313,7 @@ export default function App() {
 
   const spawnFileWindowFromState = (path: string, state: Partial<WindowItem>) => {
     const { kind, mime } = inferFileKind(path);
-    const id = crypto.randomUUID();
+    const id = state.id || crypto.randomUUID();
     zRef.current = Math.max(zRef.current + 1, state.z ?? zRef.current);
     const newWindow: WindowItem = {
       id,
@@ -376,6 +377,7 @@ export default function App() {
       windows: windows.map((win) => {
         if (win.type === 'terminal') {
           return {
+            id: win.id,
             type: 'terminal',
             name: win.name,
             x: win.x,
@@ -388,6 +390,7 @@ export default function App() {
           };
         }
         return {
+          id: win.id,
           type: 'file',
           name: win.name,
           path: win.path,
@@ -440,7 +443,7 @@ export default function App() {
               shell: null,
               cwd: rootPathRef.current || null,
             });
-            const id = crypto.randomUUID();
+            const id = w.id || crypto.randomUUID();
             restored.push({
               id,
               x: w.x ?? 160,
@@ -460,7 +463,7 @@ export default function App() {
               startCliInTerminal(session.id, w.terminalKind, w.resumeSessionId);
             }
           } else if (w.type === 'file' && w.path) {
-            restored.push(spawnFileWindowFromState(w.path, w));
+            restored.push(spawnFileWindowFromState(w.path, { ...w, id: w.id || crypto.randomUUID() }));
           }
         }
         if (!cancelled) {
