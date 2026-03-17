@@ -644,7 +644,7 @@ export default function App() {
       (project) => normalizePathForMatch(project.path) === normalizedNextPath
     );
     const targetPath = savedMatch?.path || nextPath;
-    if (normalizePathForMatch(rootPathRef.current) === normalizedNextPath) {
+    if (normalizePathForMatch(rootPathRef.current) === normalizePathForMatch(targetPath)) {
       setRootPath(targetPath);
       setPickerPath(targetPath);
       setShowProjectPicker(false);
@@ -653,9 +653,17 @@ export default function App() {
     }
 
     const openSessions = windowsRef.current
-      .filter((win) => win.type === 'terminal' && win.sessionId)
+      .filter((win): win is WindowItem & { type: 'terminal'; sessionId: string } => (
+        win.type === 'terminal' && typeof win.sessionId === 'string' && win.sessionId.length > 0
+      ))
       .map((win) => win.sessionId);
-    await Promise.all(openSessions.map((id) => invoke('close_session', { id }).catch(() => {})));
+    await Promise.all(
+      openSessions.map((id) =>
+        invoke('close_session', { id }).catch((err) => {
+          console.warn('close session failed while switching project', err);
+        })
+      )
+    );
 
     pendingResumeRef.current.clear();
     codexAssignedRef.current.clear();
@@ -713,7 +721,7 @@ export default function App() {
                     type="button"
                     onClick={() => {
                       switchProject(project.path).catch(() => {
-                        setPickerError('Could not open folder');
+                        setPickerError(`Could not open folder: ${project.path}`);
                       });
                     }}
                   >

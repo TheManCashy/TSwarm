@@ -72,7 +72,8 @@ fn resolve_home_dir() -> Result<PathBuf, String> {
         }
         if let (Some(drive), Some(path)) = (home_drive.as_deref(), home_path.as_deref()) {
             if !drive.trim().is_empty() && !path.trim().is_empty() {
-                let combined = PathBuf::from(drive).join(path.trim_start_matches(['\\', '/']));
+                let combined =
+                    PathBuf::from(drive).join(path.trim_start_matches(|c| c == '\\' || c == '/'));
                 return Ok(combined);
             }
         }
