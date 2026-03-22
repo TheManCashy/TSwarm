@@ -36,6 +36,7 @@ export function TerminalWindow({ win, scale, active, onMove, onResize, onFocus, 
     let fitAddon: FitAddon | null = null;
     let ro: ResizeObserver | null = null;
     let fontReadyCancelled = false;
+    let fitRafId: number | null = null;
 
     const setup = async () => {
       term = new Terminal({
@@ -83,18 +84,22 @@ export function TerminalWindow({ win, scale, active, onMove, onResize, onFocus, 
         invoke('log_frontend', { message: `registered ${win.sessionId} cols=${term.cols} rows=${term.rows}` }).catch(()=>{});
         setTerminalPaused(win.sessionId, false);
         setTerminalActive(win.sessionId, active);
-        requestAnimationFrame(() => {
+        const rafId = requestAnimationFrame(() => {
+          fitRafId = null;
           if (!isMounted) return;
           fitAndSync();
         });
+        fitRafId = rafId;
       }
 
-      const fonts = (document as Document & { fonts?: FontFaceSet }).fonts;
-      if (fonts?.ready) {
-        fonts.ready.then(() => {
-          if (!isMounted || fontReadyCancelled) return;
-          fitAndSync();
-        });
+      const fonts = 'fonts' in document ? document.fonts : undefined;
+      if (fonts && fonts.status !== 'loaded') {
+        fonts.ready
+          .then(() => {
+            if (!isMounted || fontReadyCancelled) return;
+            fitAndSync();
+          })
+          .catch(() => {});
       }
 
       setTimeout(() => {
@@ -169,6 +174,7 @@ export function TerminalWindow({ win, scale, active, onMove, onResize, onFocus, 
     return () => {
       isMounted = false;
       fontReadyCancelled = true;
+      if (fitRafId !== null) cancelAnimationFrame(fitRafId);
       if (ro && containerRef.current) ro.unobserve(containerRef.current);
       if (term) term.dispose();
       unregisterTerminal(win.sessionId);
