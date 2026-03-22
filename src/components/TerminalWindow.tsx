@@ -35,6 +35,8 @@ export function TerminalWindow({ win, scale, active, onMove, onResize, onFocus, 
     let term: Terminal | null = null;
     let fitAddon: FitAddon | null = null;
     let ro: ResizeObserver | null = null;
+    let fontReadyCancelled = false;
+    let fitRafId: number | null = null;
 
     const setup = async () => {
       term = new Terminal({
@@ -62,14 +64,44 @@ export function TerminalWindow({ win, scale, active, onMove, onResize, onFocus, 
       await initTerminalEvents();
       if (!isMounted) return;
 
-      if (containerRef.current && fitAddon) {
+      const resizeSession = () => {
+        if (!term) return;
+        invoke('resize_session', { id: win.sessionId, cols: term.cols, rows: term.rows }).catch((err) => {
+          console.error('resize_session failed', err);
+        });
+      };
+
+      const fitAndSync = () => {
+        if (!fitAddon || !term) return;
         fitAddon.fit();
+        term.scrollToBottom();
+        resizeSession();
+      };
+
+      if (containerRef.current && fitAddon) {
+        fitAndSync();
         registerTerminal(win.sessionId, term);
         invoke('log_frontend', { message: `registered ${win.sessionId} cols=${term.cols} rows=${term.rows}` }).catch(()=>{});
         setTerminalPaused(win.sessionId, false);
         setTerminalActive(win.sessionId, active);
-        invoke('resize_session', { id: win.sessionId, cols: term.cols, rows: term.rows }).catch(() => {});
+        const rafId = requestAnimationFrame(() => {
+          fitRafId = null;
+          if (!isMounted) return;
+          fitAndSync();
+        });
+        fitRafId = rafId;
       }
+
+      const fonts = 'fonts' in document ? document.fonts : undefined;
+      if (fonts && fonts.status !== 'loaded') {
+        fonts.ready
+          .then(() => {
+            if (!isMounted || fontReadyCancelled) return;
+            fitAndSync();
+          })
+          .catch(() => {});
+      }
+
       setTimeout(() => {
         term?.focus();
       }, 0);
@@ -129,11 +161,7 @@ export function TerminalWindow({ win, scale, active, onMove, onResize, onFocus, 
       });
 
       ro = new ResizeObserver(() => {
-        if (!fitAddon || !term) return;
-        fitAddon.fit();
-        invoke('resize_session', { id: win.sessionId, cols: term.cols, rows: term.rows }).catch((err) => {
-          console.error('resize_session failed', err);
-        });
+        fitAndSync();
       });
 
       if (containerRef.current) {
@@ -145,6 +173,8 @@ export function TerminalWindow({ win, scale, active, onMove, onResize, onFocus, 
 
     return () => {
       isMounted = false;
+      fontReadyCancelled = true;
+      if (fitRafId !== null) cancelAnimationFrame(fitRafId);
       if (ro && containerRef.current) ro.unobserve(containerRef.current);
       if (term) term.dispose();
       unregisterTerminal(win.sessionId);
@@ -156,6 +186,7 @@ export function TerminalWindow({ win, scale, active, onMove, onResize, onFocus, 
     const termAny = termRef.current as any;
     if (active) {
       termAny?.resumeRenderer?.();
+      termRef.current?.scrollToBottom();
       termRef.current?.focus();
     } else {
       termAny?.pauseRenderer?.();
